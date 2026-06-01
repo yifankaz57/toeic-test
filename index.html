@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TOEIC 実力テスト</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Noto+Sans+JP:wght@300;400;600&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --card: #1a1a26;
+    --border: #2a2a40;
+    --accent: #4fd1c5;
+    --accent2: #f6ad55;
+    --danger: #fc8181;
+    --success: #68d391;
+    --text: #e2e8f0;
+    --muted: #718096;
+    --part1: #667eea;
+    --part2: #f093fb;
+    --part5: #4fd1c5;
+    --part7: #f6ad55;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Noto Sans JP', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Noise overlay */
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    pointer-events: none; z-index: 0;
+  }
+
+  /* ─── SCREENS ─── */
+  .screen { display: none; min-height: 100vh; position: relative; z-index: 1; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ─── START SCREEN ─── */
+  #start-screen {
+    align-items: center; justify-content: center;
+    padding: 40px 20px; text-align: center;
+  }
+  .logo { font-family: 'Bebas Neue', sans-serif; font-size: clamp(72px, 15vw, 140px); line-height: 0.9; color: var(--accent); letter-spacing: 4px; }
+  .logo span { color: var(--accent2); }
+  .subtitle { font-size: 13px; letter-spacing: 6px; text-transform: uppercase; color: var(--muted); margin: 12px 0 40px; }
+  .info-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 480px; margin: 0 auto 40px;
+  }
+  .info-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px 12px;
+  }
+  .info-num { font-family: 'Bebas Neue', sans-serif; font-size: 36px; color: var(--accent); }
+  .info-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .part-list { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 40px; }
+  .part-tag {
+    padding: 6px 14px; border-radius: 20px; font-size: 12px; font-family: 'IBM Plex Mono', monospace;
+    border: 1px solid; font-weight: 600;
+  }
+  .tag-p1 { color: var(--part1); border-color: var(--part1); background: rgba(102,126,234,0.1); }
+  .tag-p2 { color: var(--part2); border-color: var(--part2); background: rgba(240,147,251,0.1); }
+  .tag-p5 { color: var(--part5); border-color: var(--part5); background: rgba(79,209,197,0.1); }
+  .tag-p7 { color: var(--part7); border-color: var(--part7); background: rgba(246,173,85,0.1); }
+  .start-btn {
+    background: var(--accent); color: #0a0a0f; border: none; padding: 16px 56px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 3px;
+    border-radius: 8px; cursor: pointer; transition: all .2s;
+  }
+  .start-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(79,209,197,0.4); }
+  .disclaimer { font-size: 11px; color: var(--muted); margin-top: 20px; line-height: 1.6; }
+
+  /* ─── TEST SCREEN ─── */
+  #test-screen { padding: 0; }
+  .test-header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,10,15,0.95); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px; display: flex; align-items: center; gap: 16px;
+  }
+  .q-counter { font-family: 'IBM Plex Mono', monospace; font-size: 13px; color: var(--muted); white-space: nowrap; }
+  .q-counter span { color: var(--text); font-weight: 600; }
+  .progress-bar { flex: 1; height: 4px; background: var(--border); border-radius: 2px; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 2px; transition: width .3s; }
+  .timer {
+    font-family: 'Bebas Neue', sans-serif; font-size: 24px; color: var(--accent2);
+    white-space: nowrap; min-width: 60px; text-align: right;
+  }
+  .timer.warning { color: var(--danger); animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+  .test-body { flex: 1; padding: 24px 20px; max-width: 700px; margin: 0 auto; width: 100%; }
+
+  .part-header {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 20px;
+    padding: 10px 16px; border-radius: 8px; border-left: 3px solid;
+  }
+  .part-header.p1 { background: rgba(102,126,234,0.1); border-color: var(--part1); }
+  .part-header.p2 { background: rgba(240,147,251,0.1); border-color: var(--part2); }
+  .part-header.p5 { background: rgba(79,209,197,0.1); border-color: var(--part5); }
+  .part-header.p7 { background: rgba(246,173,85,0.1); border-color: var(--part7); }
+  .part-name { font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 2px; text-transform: uppercase; }
+  .part-desc { font-size: 12px; color: var(--muted); }
+
+  .question-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px; margin-bottom: 20px;
+  }
+  .q-num { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+  .q-text { font-size: 16px; line-height: 1.7; margin-bottom: 20px; }
+  .q-passage {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px; font-size: 14px; line-height: 1.8; margin-bottom: 20px; color: #cbd5e0;
+  }
+  .options { display: flex; flex-direction: column; gap: 10px; }
+  .option-btn {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 14px 16px; text-align: left; cursor: pointer;
+    font-family: 'Noto Sans JP', sans-serif; font-size: 14px; color: var(--text);
+    display: flex; align-items: flex-start; gap: 12px; transition: all .15s;
+  }
+  .option-btn:hover { border-color: var(--accent); background: rgba(79,209,197,0.05); }
+  .option-btn.selected { border-color: var(--accent); background: rgba(79,209,197,0.1); color: var(--accent); }
+  .option-btn.correct { border-color: var(--success); background: rgba(104,211,145,0.1); color: var(--success); }
+  .option-btn.wrong { border-color: var(--danger); background: rgba(252,129,129,0.1); color: var(--danger); }
+  .opt-label {
+    font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 13px;
+    min-width: 20px; color: var(--muted);
+  }
+  .option-btn.selected .opt-label { color: var(--accent); }
+  .option-btn.correct .opt-label { color: var(--success); }
+  .option-btn.wrong .opt-label { color: var(--danger); }
+
+  .explanation {
+    margin-top: 14px; padding: 14px; background: rgba(79,209,197,0.05);
+    border: 1px solid rgba(79,209,197,0.2); border-radius: 10px;
+    font-size: 13px; line-height: 1.7; color: #a0aec0; display: none;
+  }
+  .explanation.show { display: block; }
+  .explanation strong { color: var(--accent); }
+
+  .nav-row { display: flex; justify-content: flex-end; margin-top: 8px; }
+  .next-btn {
+    background: var(--accent); color: #0a0a0f; border: none; padding: 12px 32px;
+    font-family: 'Bebas Neue', sans-serif; font-size: 18px; letter-spacing: 2px;
+    border-radius: 8px; cursor: pointer; transition: all .2s; opacity: 0; pointer-events: none;
+  }
+  .next-btn.show { opacity: 1; pointer-events: all; }
+  .next-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 20px rgba(79,209,197,0.3); }
+
+  /* ─── RESULTS SCREEN ─── */
+  #results-screen { padding: 40px 20px; max-width: 700px; margin: 0 auto; }
+  .result-title { font-family: 'Bebas Neue', sans-serif; font-size: 56px; color: var(--accent); margin-bottom: 4px; }
+  .result-subtitle { font-size: 13px; color: var(--muted); letter-spacing: 4px; text-transform: uppercase; margin-bottom: 32px; }
+  .score-hero {
+    background: var(--card); border: 1px solid var(--border); border-radius: 20px;
+    padding: 32px; text-align: center; margin-bottom: 24px;
+  }
+  .score-num { font-family: 'Bebas Neue', sans-serif; font-size: 96px; line-height: 1; color: var(--accent); }
+  .score-denom { font-family: 'IBM Plex Mono', monospace; font-size: 18px; color: var(--muted); }
+  .score-pct { font-size: 14px; color: var(--muted); margin-top: 8px; }
+  .toeic-est {
+    margin-top: 16px; padding: 12px 24px; display: inline-block;
+    border-radius: 8px; font-family: 'Bebas Neue', sans-serif; font-size: 22px; letter-spacing: 2px;
+  }
+  .toeic-est.low { background: rgba(252,129,129,0.15); color: var(--danger); border: 1px solid var(--danger); }
+  .toeic-est.mid { background: rgba(246,173,85,0.15); color: var(--accent2); border: 1px solid var(--accent2); }
+  .toeic-est.good { background: rgba(104,211,145,0.15); color: var(--success); border: 1px solid var(--success); }
+
+  .part-scores {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 24px;
+  }
+  .part-score-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px;
+  }
+  .part-score-label { font-size: 11px; font-family: 'IBM Plex Mono', monospace; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 8px; }
+  .part-score-bar { height: 6px; background: var(--border); border-radius: 3px; margin: 8px 0; }
+  .part-score-fill { height: 100%; border-radius: 3px; transition: width 1s .5s; }
+  .part-score-num { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; }
+
+  .weakness-box {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 20px; margin-bottom: 24px;
+  }
+  .weakness-title { font-size: 13px; font-weight: 600; color: var(--accent2); margin-bottom: 12px; letter-spacing: 1px; }
+  .weakness-item { font-size: 13px; color: var(--muted); padding: 6px 0; border-bottom: 1px solid var(--border); line-height: 1.6; }
+  .weakness-item:last-child { border-bottom: none; }
+  .weakness-item strong { color: var(--text); }
+
+  .restart-btn {
+    width: 100%; background: var(--surface); color: var(--accent); border: 1px solid var(--accent);
+    padding: 14px; font-family: 'Bebas Neue', sans-serif; font-size: 20px; letter-spacing: 3px;
+    border-radius: 10px; cursor: pointer; transition: all .2s; margin-top: 8px;
+  }
+  .restart-btn:hover { background: rgba(79,209,197,0.1); }
+
+  @media (max-width: 480px) {
+    .info-grid { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .part-scores { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══ START SCREEN ═══ -->
+<div id="start-screen" class="screen active">
+  <div class="logo">TOEIC<br><span>TEST</span></div>
+  <div class="subtitle">実力診断テスト</div>
+  <div class="info-grid">
+    <div class="info-card"><div class="info-num">50</div><div class="info-label">問題数</div></div>
+    <div class="info-card"><div class="info-num">25</div><div class="info-label">分（目安）</div></div>
+    <div class="info-card"><div class="info-num">4</div><div class="info-label">パート</div></div>
+  </div>
+  <div class="part-list">
+    <span class="part-tag tag-p1">Part 1 写真描写 ×6</span>
+    <span class="part-tag tag-p2">Part 2 応答問題 ×14</span>
+    <span class="part-tag tag-p5">Part 5 短文穴埋め ×20</span>
+    <span class="part-tag tag-p7">Part 7 読解 ×10</span>
+  </div>
+  <button class="start-btn" onclick="startTest()">テスト開始</button>
+  <div class="disclaimer">※ Part1・2はリスニング代わりに英文で出題します<br>本番と完全一致ではありませんが、実力把握には十分です</div>
+</div>
+
+<!-- ═══ TEST SCREEN ═══ -->
+<div id="test-screen" class="screen">
+  <div class="test-header">
+    <div class="q-counter">Q<span id="q-current">1</span> / <span id="q-total">50</span></div>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    <div class="timer" id="timer">25:00</div>
+  </div>
+  <div class="test-body" id="test-body"></div>
+</div>
+
+<!-- ═══ RESULTS SCREEN ═══ -->
+<div id="results-screen" class="screen">
+  <div class="result-title">RESULTS</div>
+  <div class="result-subtitle">診断完了</div>
+
+  <div class="score-hero">
+    <div class="score-num" id="score-num">0</div>
+    <div class="score-denom">/ 50問</div>
+    <div class="score-pct" id="score-pct"></div>
+    <div class="toeic-est" id="toeic-est"></div>
+  </div>
+
+  <div class="part-scores" id="part-scores"></div>
+
+  <div class="weakness-box" id="weakness-box">
+    <div class="weakness-title">📊 分析 & 次のアクション</div>
+    <div id="weakness-content"></div>
+  </div>
+
+  <button class="restart-btn" onclick="restartTest()">もう一度挑戦</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  QUESTION DATA
+// ═══════════════════════════════════════════════════════
+const questions = [
+  // ── PART 1: 写真描写 (Q1-6) ──
+  {
+    id:1, part:'Part 1', partClass:'p1', partDesc:'写真描写問題',
+    text: '【写真の状況】 A woman is sitting at a desk and typing on a keyboard. Which description best matches the photo?',
+    options:['She is standing near a window.','She is typing on a keyboard at a desk.','She is eating lunch at a table.','She is talking on the phone.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 「女性がデスクに座ってキーボードを打っている」という状況を正しく描写しています。(A)は"standing"が誤り。(C)(D)は全く異なる動作です。'
+  },
+  {
+    id:2, part:'Part 1', partClass:'p1', partDesc:'写真描写問題',
+    text: '【写真の状況】 Several boxes are stacked against the wall in a warehouse. Which description best matches the photo?',
+    options:['Workers are unloading trucks outside.','The shelves are completely empty.','Boxes are piled up along the wall.','A forklift is moving through the aisle.'],
+    answer:2, explanation:'<strong>正解: (C)</strong> 「箱が壁に沿って積まれている」という描写が正しい。(A)(D)は人や機械の動作で写真にない。(B)は棚が空というのも誤りです。'
+  },
+  {
+    id:3, part:'Part 1', partClass:'p1', partDesc:'写真描写問題',
+    text: '【写真の状況】 A man is presenting a chart on a screen to a group of colleagues in a conference room. Which is correct?',
+    options:['He is reading a newspaper alone.','He is presenting to a group in a meeting room.','The room is empty and the lights are off.','Colleagues are sleeping during the meeting.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 会議室でグループにプレゼンしている場面の正確な描写。(A)(C)(D)はすべて状況と一致しません。'
+  },
+  {
+    id:4, part:'Part 1', partClass:'p1', partDesc:'写真描写問題',
+    text: '【写真の状況】 A chef is preparing food in a restaurant kitchen. Steam is rising from the pots. Which fits best?',
+    options:['A chef is cooking in a kitchen.','Customers are ordering at a counter.','The kitchen is unoccupied and clean.','A waiter is serving food at a table.'],
+    answer:0, explanation:'<strong>正解: (A)</strong> 「シェフがキッチンで料理している」という正確な描写。(B)(D)は違う場所・人物。(C)は人がいないと言っているので誤りです。'
+  },
+  {
+    id:5, part:'Part 1', partClass:'p1', partDesc:'写真描写問題',
+    text: '【写真の状況】 Two people are shaking hands outside a building. Both are smiling. Which best describes this?',
+    options:['They are arguing in front of the door.','Two people are exchanging handshakes outside.','One person is waving goodbye inside a car.','They are sitting on a bench together.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 「建物の外で二人が握手している」を正確に描写。(A)は"arguing"が誤り。(C)(D)は状況が全く異なります。'
+  },
+  {
+    id:6, part:'Part 1', partClass:'p1', partDesc:'写真描写問題',
+    text: '【写真の状況】 A bicycle is parked next to a tree on a sidewalk. No one is near it. Which is correct?',
+    options:['A man is riding a bicycle through the park.','A bicycle is leaning against a tree on the sidewalk.','Two bikes are chained to a fence.','A child is learning to ride a bicycle.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 「自転車が歩道の木の横に止まっている」が正確。(A)は人が乗っている、(C)は2台・フェンス、(D)は子どもが練習中と全て誤りです。'
+  },
+
+  // ── PART 2: 応答問題 (Q7-20) ──
+  {
+    id:7, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"When is the quarterly report due?"',
+    options:['It\'s on the top shelf.','By the end of this Friday.','Yes, I submitted it yesterday.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "When"（いつ）という時間を聞く質問への自然な答えは"By the end of this Friday"（今週の金曜日まで）です。(A)は場所の答え。(C)はYes/No疑問文への返答です。'
+  },
+  {
+    id:8, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Could you help me move these chairs to the conference room?"',
+    options:['Sure, I\'ll be right there.','The conference room is on the 3rd floor.','Yes, the meeting starts at 2.'],
+    answer:0, explanation:'<strong>正解: (A)</strong> 依頼に対して「もちろん、すぐ行きます」と応答するのが最も自然。(B)は場所の情報だけで応答になっていない。(C)は全く別の話題です。'
+  },
+  {
+    id:9, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Who is in charge of the new product launch?"',
+    options:['It launches next month.','Sandra from the marketing team.','The product is very popular.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "Who"（誰）という質問に対して人名で答えるのが正しい。(A)は"When"への答え。(C)は製品の評判の話で質問にずれています。'
+  },
+  {
+    id:10, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Why was the office closed yesterday?"',
+    options:['It opens at 9 a.m.','Because of a scheduled maintenance.','There are 50 employees here.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "Why"（なぜ）への答えは理由を述べるBが正解。"Because of a scheduled maintenance"（定期メンテナンスのため）。(A)は開店時間、(C)は従業員数で関係ありません。'
+  },
+  {
+    id:11, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Have you already spoken to the client about the delay?"',
+    options:['Not yet. I\'ll call them this afternoon.','The delay was 30 minutes.','Yes, the client office is downtown.'],
+    answer:0, explanation:'<strong>正解: (A)</strong> 「クライアントに連絡したか」という質問に「まだです、今日の午後に電話します」が自然な答え。(B)は遅延の時間だけ言っている。(C)はオフィスの場所で全く別の話です。'
+  },
+  {
+    id:12, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Where should I send the invoice?"',
+    options:['To the accounting department.','It was sent last Tuesday.','The invoice total is $500.'],
+    answer:0, explanation:'<strong>正解: (A)</strong> "Where"（どこへ）の問いに場所（経理部）で答えるのが正解。(B)は過去形で誰が送ったかの話。(C)は金額の話です。'
+  },
+  {
+    id:13, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Is the training session tomorrow or the day after?"',
+    options:['I attended the training last year.','It\'s been postponed to Thursday.','The trainer is very experienced.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 二択（明日か明後日か）への答えとして「木曜日に延期された」が最も適切な応答。(A)は過去の話。(C)はトレーナーの資質の話でずれています。'
+  },
+  {
+    id:14, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"How many people attended the annual conference?"',
+    options:['It was held in Chicago.','The conference was very informative.','Around two hundred.'],
+    answer:2, explanation:'<strong>正解: (C)</strong> "How many"（何人）という数量を聞く質問に数字で答える(C)"Around two hundred"が正解。(A)は場所、(B)は感想で数字がありません。'
+  },
+  {
+    id:15, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Do you know if the cafeteria is open on weekends?"',
+    options:['The cafeteria food is delicious.','I think it closes at 2 p.m. on Saturdays.','We usually eat at our desks.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 週末の営業時間を尋ねる間接疑問文。「土曜は午後2時に閉まると思います」が最も直接的な答え。(A)は味の話。(C)は習慣の話でずれています。'
+  },
+  {
+    id:16, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Would you prefer the morning or afternoon meeting slot?"',
+    options:['The meeting room is available all day.','Either one works for me.','I went to the meeting last week.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 二択の好みを聞く質問に「どちらでも大丈夫です」が自然な応答。(A)は部屋の空き状況の話。(C)は過去の話です。'
+  },
+  {
+    id:17, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Doesn\'t the parking garage close at 8 p.m.?"',
+    options:['Actually, it stays open until 10.','I parked on the third level.','The parking fee is $5 per hour.'],
+    answer:0, explanation:'<strong>正解: (A)</strong> 「駐車場は午後8時に閉まりますよね」という付加・確認疑問文に「実は10時まで開いています」と事実を訂正するAが正解。(B)は駐車場所、(C)は料金の話です。'
+  },
+  {
+    id:18, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"Can you recommend a good restaurant near the office?"',
+    options:['The office is near the subway.','Try the Italian place on Fifth Street.','I usually cook at home.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 「良いレストランを教えてほしい」という依頼・お願いに具体的な店を紹介するBが最適。(A)はオフィスの場所。(C)は自分の習慣で推薦になっていません。'
+  },
+  {
+    id:19, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"The printer in Room 3 is out of paper."',
+    options:['I\'ll get some from the supply closet.','The printer was installed last year.','Room 3 is used for meetings.'],
+    answer:0, explanation:'<strong>正解: (A)</strong> プリンターの紙がないという情報への自然な反応は「備品室から取ってきます」。(B)は設置時期、(C)は部屋の用途の話でそれぞれ状況への対応になっていません。'
+  },
+  {
+    id:20, part:'Part 2', partClass:'p2', partDesc:'応答問題',
+    text: '"I\'m not sure how to use this new software."',
+    options:['The software costs $200 per license.','There\'s a tutorial video on the company intranet.','I prefer the old version too.'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 「新しいソフトの使い方がわからない」という困惑に「社内イントラにチュートリアル動画があります」と解決策を示すBが最適。(A)は価格の話、(C)は共感だが解決にならない。'
+  },
+
+  // ── PART 5: 短文穴埋め (Q21-40) ──
+  {
+    id:21, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The new product will be launched _____ the end of next month.',
+    options:['at','by','on','in'],
+    answer:1, explanation:'<strong>正解: (B) by</strong> 「〜までに（期限）」を表すのは"by"。"at the end"は時点を表し通常"at"を使いますが、ここでは期限のニュアンスがあるので"by the end"が正しい表現です。'
+  },
+  {
+    id:22, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'All employees are required to _____ the safety training before starting their new roles.',
+    options:['completion','completing','complete','completed'],
+    answer:2, explanation:'<strong>正解: (C) complete</strong> "required to"の後には動詞の原形（不定詞）が続きます。"to complete"が正しい形。(A)は名詞、(B)は動名詞、(D)は過去形・過去分詞です。'
+  },
+  {
+    id:23, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The _____ of the quarterly report will be available on Friday.',
+    options:['finalize','final','finally','finalized'],
+    answer:1, explanation:'<strong>正解: (B) final</strong> "The ___ of the report"という形では、名詞"report"を修飾する形容詞が必要。ここでは"final version"（最終版）という意味で形容詞"final"が入ります。'
+  },
+  {
+    id:24, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'Ms. Tanaka has worked at this company _____ she graduated from university.',
+    options:['during','while','since','for'],
+    answer:2, explanation:'<strong>正解: (C) since</strong> 「〜以来（ずっと）」を表し、過去の起点から現在まで続く行為には"since + 時点"を使います。"for + 期間"と混同しないように注意。"since she graduated"（卒業して以来）が正しい。'
+  },
+  {
+    id:25, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The manager asked the team to submit their reports _____ than originally scheduled.',
+    options:['early','earliest','earlier','most early'],
+    answer:2, explanation:'<strong>正解: (C) earlier</strong> "than"を伴う比較級の文。"early"の比較級は"earlier"。"more early"という形はなく、(D)も不正解。「元々の予定よりも早く」という意味になります。'
+  },
+  {
+    id:26, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The conference room _____ while we were having the meeting.',
+    options:['is cleaned','was cleaned','has been cleaned','will clean'],
+    answer:1, explanation:'<strong>正解: (B) was cleaned</strong> "while we were having"という過去進行形があるので、主節も過去形になります。また「部屋が掃除された」という受動態なので"was cleaned"が正解。'
+  },
+  {
+    id:27, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'Please send the document to _____ handles accounts receivable.',
+    options:['which','who','whoever','whom'],
+    answer:2, explanation:'<strong>正解: (C) whoever</strong> "whoever"は「〜する人は誰でも」という意味の複合関係代名詞。"send to whoever handles..."（〜を担当している誰かに送ってください）。"whomever"も文法的には使えますが選択肢にないためwhoeverが正解です。'
+  },
+  {
+    id:28, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The board of directors will _____ a decision about the merger next week.',
+    options:['do','make','take','have'],
+    answer:1, explanation:'<strong>正解: (B) make</strong> "make a decision"（決定を下す）は固定コロケーション。"do a decision"・"take a decision"（英国英語では可）・"have a decision"はTOEICでは不正解。'
+  },
+  {
+    id:29, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The survey results were _____ surprising that the team decided to redo the research.',
+    options:['very','too','so','such'],
+    answer:2, explanation:'<strong>正解: (C) so</strong> "so...that〜"（とても〜なので…）という構文。"such...that"は後に名詞句が続きます（such a surprise that）。"very"と"too"はthat節と呼応しません。'
+  },
+  {
+    id:30, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: '_____ the heavy rain, the outdoor event was canceled.',
+    options:['Despite','Because of','Although','However'],
+    answer:1, explanation:'<strong>正解: (B) Because of</strong> 「大雨が原因でイベントが中止になった」という因果関係。"Because of + 名詞"で理由を表します。(A)"Despite"は「〜にもかかわらず」で逆の意味。(C)"Although"は接続詞で後に節が必要。'
+  },
+  {
+    id:31, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'Our company offers _____ flexible working hours to attract top talent.',
+    options:['highly','high','higher','height'],
+    answer:0, explanation:'<strong>正解: (A) highly</strong> 形容詞"flexible"を修飾するには副詞が必要。"highly flexible"（非常に柔軟な）が正解。"high flexible"は不可。(C)"higher"は比較級でthanが必要、(D)は名詞です。'
+  },
+  {
+    id:32, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'Employees who _____ to the newsletter will receive updates by email.',
+    options:['subscribe','subscribes','subscribed','subscription'],
+    answer:0, explanation:'<strong>正解: (A) subscribe</strong> 関係代名詞節"who ___ to the newsletter"の中で、先行詞"Employees"（複数）に合わせて動詞は三単現のsなしの"subscribe"が正しい。'
+  },
+  {
+    id:33, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The renovation project is expected to be _____ by the end of the fiscal year.',
+    options:['complete','completion','completing','completely'],
+    answer:0, explanation:'<strong>正解: (A) complete</strong> "be"動詞の補語として形容詞"complete"（完了した・完成した）が入ります。"be completed"（受動態）も文法的には可能ですが選択肢にないため、形容詞のcompleteが正解。'
+  },
+  {
+    id:34, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The CEO gave a speech _____ motivated all the employees.',
+    options:['what','which','who','where'],
+    answer:1, explanation:'<strong>正解: (B) which</strong> 先行詞"a speech"（物）を受ける関係代名詞は"which"。"what"は先行詞を含む関係代名詞なのでここでは不可。"who"は人に使い、"where"は場所を表します。'
+  },
+  {
+    id:35, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The company _____ its headquarters from Tokyo to Osaka last year.',
+    options:['moved','has moved','moves','is moving'],
+    answer:0, explanation:'<strong>正解: (A) moved</strong> "last year"（去年）という過去を示す副詞があるため、過去形"moved"が正解。"has moved"は現在完了形でlast yearとは通常一緒に使えません。'
+  },
+  {
+    id:36, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'Mr. Patel is responsible _____ managing the overseas sales team.',
+    options:['of','for','in','to'],
+    answer:1, explanation:'<strong>正解: (B) for</strong> "responsible for"（〜に責任がある）は決まった前置詞の組み合わせ（コロケーション）。"responsible of/in/to"とは言いません。TOEICで頻出の重要表現です。'
+  },
+  {
+    id:37, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: '_____ attending the workshop, participants will receive a certificate.',
+    options:['After','During','While','By'],
+    answer:0, explanation:'<strong>正解: (A) After</strong> 「ワークショップ参加後に証明書が発行される」。"After attending"（参加した後）が時間的な流れとして自然。"During"は「〜の間」、"By"は期限を表し意味が合いません。'
+  },
+  {
+    id:38, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The new policy will affect _____ works in the marketing department.',
+    options:['who','everyone who','those','what'],
+    answer:1, explanation:'<strong>正解: (B) everyone who</strong> 「マーケティング部で働く全員に影響する」。"affect everyone who works"（働く全員に影響する）が文法的に正しく意味も通じる。(A)"who"だけでは主語がない、(C)"those"の後にwhoが必要。'
+  },
+  {
+    id:39, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The client\'s feedback was _____ positive that we decided to expand the project.',
+    options:['very','enough','so','too'],
+    answer:2, explanation:'<strong>正解: (C) so</strong> 「フィードバックがとてもポジティブだったので、プロジェクトを拡大することにした」。"so...that"構文（とても〜なので…）が正しい。"very"はthat節と呼応しません。'
+  },
+  {
+    id:40, part:'Part 5', partClass:'p5', partDesc:'短文穴埋め問題',
+    text: 'The annual report must be _____ to all shareholders before the deadline.',
+    options:['distributing','distribute','distributed','distribution'],
+    answer:2, explanation:'<strong>正解: (C) distributed</strong> "must be + 過去分詞"という受動態の文。「年次報告書は期限前に全株主に配布されなければならない」。"distributed"が正しい過去分詞形です。'
+  },
+
+  // ── PART 7: 読解問題 (Q41-50) ──
+  {
+    id:41, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: `From: Sarah Johnson <s.johnson@techcorp.com>
+To: All Staff
+Subject: Office Renovation Notice
+Date: March 10
+
+Dear Team,
+
+Please be aware that our office will undergo renovations from March 15 to March 22. During this period, the 3rd floor will be temporarily closed. All 3rd-floor staff will be relocated to the 5th floor conference rooms. Please bring your laptops and any essential materials with you.
+
+Parking will remain available. The cafeteria will be open as usual.
+
+Thank you for your cooperation.
+
+Sarah Johnson
+Facilities Manager`,
+    text: 'What is the purpose of this email?',
+    options:['To announce a company holiday','To inform staff about upcoming office renovations','To request employees to bring laptops','To cancel a meeting'],
+    answer:1, explanation:'<strong>正解: (B)</strong> メール件名"Office Renovation Notice"と本文冒頭"our office will undergo renovations"から、オフィス改装の通知であることがわかります。(C)はラップトップを持参するよう伝えていますが、それはメールの目的ではなく詳細の一つです。'
+  },
+  {
+    id:42, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: null,
+    text: 'According to the email, where will the 3rd floor employees work during the renovation?',
+    options:['At home','On the 5th floor','In the cafeteria','In the parking area'],
+    answer:1, explanation:'<strong>正解: (B)</strong> 本文に"All 3rd-floor staff will be relocated to the 5th floor conference rooms"と明記されています。'
+  },
+  {
+    id:43, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: `JOB POSTING
+
+Position: Marketing Coordinator
+Company: Global Solutions Inc.
+Location: New York, NY (Hybrid – 3 days in office)
+Salary: $55,000–$65,000 annually
+
+Responsibilities:
+• Coordinate marketing campaigns across digital and print media
+• Analyze campaign performance using analytics tools
+• Collaborate with the design team on creative assets
+
+Requirements:
+• Bachelor's degree in Marketing or related field
+• Minimum 2 years of marketing experience
+• Proficiency in Google Analytics and Microsoft Office
+
+To apply, send your resume and cover letter to hr@globalsolutions.com by April 30.`,
+    text: 'What is the minimum experience required for this position?',
+    options:['1 year','2 years','3 years','No experience required'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "Requirements"の項目に"Minimum 2 years of marketing experience"と記載されています。'
+  },
+  {
+    id:44, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: null,
+    text: 'How should applicants submit their application?',
+    options:['By mail','By phone','By email','In person'],
+    answer:2, explanation:'<strong>正解: (C)</strong> 本文末尾に"send your resume and cover letter to hr@globalsolutions.com"とあり、メール（email）での応募が指定されています。'
+  },
+  {
+    id:45, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: `CUSTOMER REVIEW – StarReview Platform
+Product: UltraBlend Pro 3000 Blender
+Rating: ★★★★☆ (4/5)
+Reviewed by: Michael T.
+
+I purchased this blender three weeks ago and I am overall satisfied. It is powerful enough to handle frozen fruits and ice without any problem. The noise level is acceptable compared to my previous model. 
+
+However, the lid is a bit difficult to secure properly, which caused a small spill during my first use. Once I got used to it, this was no longer an issue. Customer service was very responsive when I contacted them about this—they sent a replacement lid within two days.
+
+I would recommend this product, but new users should read the instructions carefully.`,
+    text: 'What problem did the reviewer experience with the product?',
+    options:['It was too noisy','The motor stopped working','The lid was hard to close properly','It could not blend frozen fruits'],
+    answer:2, explanation:'<strong>正解: (C)</strong> 本文に"the lid is a bit difficult to secure properly, which caused a small spill"とあり、フタをしっかり閉めるのが難しかったと書かれています。'
+  },
+  {
+    id:46, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: null,
+    text: 'How did the company respond to the reviewer\'s complaint?',
+    options:['They offered a full refund','They sent a replacement lid','They apologized but took no action','They asked the reviewer to return the product'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "they sent a replacement lid within two days"とあり、会社は2日以内に交換用のフタを送ったことがわかります。'
+  },
+  {
+    id:47, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: `MEMO
+
+To: All Department Heads
+From: HR Department
+Date: June 1
+Re: Updated Leave Policy
+
+Effective July 1, the company's annual leave policy will be updated as follows:
+
+• Employees with 1–3 years of service: 12 days per year (unchanged)
+• Employees with 4–7 years of service: 15 days per year (increased from 13)
+• Employees with 8+ years of service: 20 days per year (increased from 18)
+
+Unused leave of up to 5 days may be carried over to the following year. Previously, no carryover was permitted.
+
+Please communicate this update to your team members before June 20.`,
+    text: 'What change is made for employees with 4–7 years of service?',
+    options:['Leave increases from 12 to 15 days','Leave increases from 13 to 15 days','Leave stays the same at 15 days','Leave decreases from 15 to 13 days'],
+    answer:1, explanation:'<strong>正解: (B)</strong> メモに"Employees with 4–7 years of service: 15 days per year (increased from 13)"とあり、13日から15日に増加したことがわかります。'
+  },
+  {
+    id:48, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: null,
+    text: 'What is new about the carryover policy?',
+    options:['Carryover is no longer allowed','Up to 5 days can now be carried over','Up to 10 days can be carried over','Carryover only applies to senior employees'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "Unused leave of up to 5 days may be carried over to the following year. Previously, no carryover was permitted."とあり、以前は持ち越し不可だったが、今後は最大5日まで可能になったことが述べられています。'
+  },
+  {
+    id:49, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: `NOTICE
+
+The Westside Community Center is pleased to announce its Summer Program Schedule.
+
+Adult Fitness Classes (Mon/Wed/Fri, 7:00 AM – 8:00 AM)
+Yoga for Beginners (Tue/Thu, 6:00 PM – 7:00 PM)
+Youth Swimming Lessons (Sat, 9:00 AM – 11:00 AM)
+Senior Wellness Workshop (Every 2nd and 4th Wednesday, 2:00 PM – 4:00 PM)
+
+Registration opens June 15. Space is limited—early registration is recommended.
+For more information, call (555) 234-7890 or visit www.westsidecc.org.`,
+    text: 'How often does the Senior Wellness Workshop take place?',
+    options:['Every week on Wednesday','Twice a month on Wednesdays','Every day','Once a month'],
+    answer:1, explanation:'<strong>正解: (B)</strong> "Every 2nd and 4th Wednesday"とあり、毎月第2・第4水曜日、つまり月に2回開催されることがわかります。'
+  },
+  {
+    id:50, part:'Part 7', partClass:'p7', partDesc:'読解問題',
+    passage: null,
+    text: 'When does registration open?',
+    options:['June 1','June 10','June 15','July 1'],
+    answer:2, explanation:'<strong>正解: (C)</strong> "Registration opens June 15"と明記されています。'
+  }
+];
+
+// ═══════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════
+let currentQ = 0;
+let answers = new Array(50).fill(null);
+let timerInterval = null;
+let timeLeft = 25 * 60;
+let answered = false;
+let lastPassageIdx = null;
+
+// ═══════════════════════════════════════════════════════
+//  TIMER
+// ═══════════════════════════════════════════════════════
+function startTimer() {
+  timerInterval = setInterval(() => {
+    timeLeft--;
+    const m = Math.floor(timeLeft / 60);
+    const s = timeLeft % 60;
+    const el = document.getElementById('timer');
+    el.textContent = `${m}:${s.toString().padStart(2,'0')}`;
+    if (timeLeft <= 180) el.classList.add('warning');
+    if (timeLeft <= 0) { clearInterval(timerInterval); showResults(); }
+  }, 1000);
+}
+
+// ═══════════════════════════════════════════════════════
+//  RENDER QUESTION
+// ═══════════════════════════════════════════════════════
+function renderQuestion() {
+  const q = questions[currentQ];
+  answered = false;
+
+  document.getElementById('q-current').textContent = currentQ + 1;
+  document.getElementById('q-total').textContent = questions.length;
+  document.getElementById('progress-fill').style.width = ((currentQ / questions.length) * 100) + '%';
+
+  // Find the passage: use current question's if exists, else look back
+  let passage = q.passage;
+  if (passage === null && q.part === 'Part 7') {
+    for (let i = currentQ - 1; i >= 0; i--) {
+      if (questions[i].passage !== null && questions[i].passage !== undefined) {
+        passage = questions[i].passage;
+        break;
+      }
+    }
+  }
+
+  let html = `
+    <div class="part-header ${q.partClass}">
+      <span class="part-name">${q.part}</span>
+      <span class="part-desc">${q.partDesc}</span>
+    </div>
+    <div class="question-card">
+      <div class="q-num">Question ${q.id} of 50</div>
+      ${passage ? `<div class="q-passage">${passage.replace(/\n/g,'<br>')}</div>` : ''}
+      <div class="q-text">${q.text}</div>
+      <div class="options">
+        ${q.options.map((opt, i) => `
+          <button class="option-btn" onclick="selectAnswer(${i})" id="opt-${i}">
+            <span class="opt-label">${String.fromCharCode(65+i)}</span>
+            <span>${opt}</span>
+          </button>
+        `).join('')}
+      </div>
+      <div class="explanation" id="explanation"></div>
+    </div>
+    <div class="nav-row">
+      <button class="next-btn" id="next-btn" onclick="nextQuestion()">
+        ${currentQ < questions.length - 1 ? '次の問題 →' : '結果を見る'}
+      </button>
+    </div>
+  `;
+
+  document.getElementById('test-body').innerHTML = html;
+  window.scrollTo(0, 0);
+}
+
+function selectAnswer(idx) {
+  if (answered) return;
+  answered = true;
+  answers[currentQ] = idx;
+
+  const q = questions[currentQ];
+  q.options.forEach((_, i) => {
+    const btn = document.getElementById(`opt-${i}`);
+    if (i === q.answer) btn.classList.add('correct');
+    else if (i === idx) btn.classList.add('wrong');
+  });
+
+  const exp = document.getElementById('explanation');
+  exp.innerHTML = q.explanation;
+  exp.classList.add('show');
+
+  document.getElementById('next-btn').classList.add('show');
+}
+
+function nextQuestion() {
+  currentQ++;
+  if (currentQ >= questions.length) {
+    clearInterval(timerInterval);
+    showResults();
+  } else {
+    renderQuestion();
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  RESULTS
+// ═══════════════════════════════════════════════════════
+function showResults() {
+  document.getElementById('test-screen').classList.remove('active');
+  document.getElementById('results-screen').classList.add('active');
+
+  const partInfo = {
+    'Part 1': { total:6, color: 'var(--part1)', label:'Part 1 写真描写' },
+    'Part 2': { total:14, color: 'var(--part2)', label:'Part 2 応答問題' },
+    'Part 5': { total:20, color: 'var(--part5)', label:'Part 5 短文穴埋め' },
+    'Part 7': { total:10, color: 'var(--part7)', label:'Part 7 読解' },
+  };
+
+  let totalCorrect = 0;
+  const partCorrect = {};
+  Object.keys(partInfo).forEach(p => partCorrect[p] = 0);
+
+  questions.forEach((q, i) => {
+    if (answers[i] === q.answer) {
+      totalCorrect++;
+      partCorrect[q.part]++;
+    }
+  });
+
+  const pct = Math.round((totalCorrect / 50) * 100);
+
+  // Estimate TOEIC range
+  let toeicEst, estClass;
+  if (pct < 40) { toeicEst = '推定 TOEIC 250〜320点'; estClass = 'low'; }
+  else if (pct < 55) { toeicEst = '推定 TOEIC 320〜420点'; estClass = 'low'; }
+  else if (pct < 68) { toeicEst = '推定 TOEIC 420〜490点'; estClass = 'mid'; }
+  else if (pct < 80) { toeicEst = '推定 TOEIC 490〜560点'; estClass = 'mid'; }
+  else { toeicEst = '推定 TOEIC 560点以上'; estClass = 'good'; }
+
+  document.getElementById('score-num').textContent = totalCorrect;
+  document.getElementById('score-pct').textContent = `正答率 ${pct}%`;
+  const estEl = document.getElementById('toeic-est');
+  estEl.textContent = toeicEst;
+  estEl.className = `toeic-est ${estClass}`;
+
+  // Part scores
+  let partHTML = '';
+  Object.entries(partInfo).forEach(([part, info]) => {
+    const c = partCorrect[part];
+    const t = info.total;
+    const p = Math.round((c / t) * 100);
+    partHTML += `
+      <div class="part-score-card">
+        <div class="part-score-label" style="color:${info.color}">${info.label}</div>
+        <div class="part-score-num" style="color:${info.color}">${c} / ${t} 問</div>
+        <div class="part-score-bar">
+          <div class="part-score-fill" style="width:${p}%;background:${info.color}"></div>
+        </div>
+        <div style="font-size:12px;color:var(--muted)">${p}%正解</div>
+      </div>`;
+  });
+  document.getElementById('part-scores').innerHTML = partHTML;
+
+  // Weakness analysis
+  const weak = [];
+  Object.entries(partInfo).forEach(([part, info]) => {
+    const p = Math.round((partCorrect[part] / info.total) * 100);
+    if (p < 50) weak.push({ part, p, label: info.label });
+  });
+
+  let adviceHTML = '';
+  if (weak.length === 0) {
+    adviceHTML = '<div class="weakness-item">✅ 全パートで50%以上正解しています。バランスよく伸びています。次は模試で時間配分を練習しましょう。</div>';
+  } else {
+    weak.sort((a,b) => a.p - b.p).forEach(w => {
+      let tip = '';
+      if (w.part === 'Part 1') tip = '写真の状況を「人物の動作・物の状態」で整理する練習を。選択肢の消去法が有効です。';
+      else if (w.part === 'Part 2') tip = '疑問詞の最初の一語に集中。Who→人名、Where→場所、Why→理由と対応を体に染み込ませましょう。';
+      else if (w.part === 'Part 5') tip = '品詞判別（名詞/動詞/形容詞/副詞）と時制・態（能動/受動）の2軸で解く訓練を。でる1000問が最適です。';
+      else if (w.part === 'Part 7') tip = 'まず設問を読んでから本文を読む「先読み」を必ず実践。答えのキーワードを探す練習を積みましょう。';
+      adviceHTML += `<div class="weakness-item"><strong>⚠️ ${w.label}（正解率${w.p}%）</strong><br>${tip}</div>`;
+    });
+  }
+
+  // General advice
+  if (pct < 55) {
+    adviceHTML += '<div class="weakness-item"><strong>📌 優先事項</strong><br>まず単語力の底上げを。金のフレーズの頻出600語を2週間で1周させることを最優先にしてください。</div>';
+  } else {
+    adviceHTML += '<div class="weakness-item"><strong>📌 次のステップ</strong><br>公式問題集で時間を計って模試に挑戦。問題への慣れが得点に直結します。</div>';
+  }
+
+  document.getElementById('weakness-content').innerHTML = adviceHTML;
+
+  // Animate bars
+  setTimeout(() => {
+    document.querySelectorAll('.part-score-fill').forEach(el => {
+      const w = el.style.width; el.style.width = '0'; 
+      setTimeout(() => el.style.width = w, 100);
+    });
+  }, 100);
+}
+
+// ═══════════════════════════════════════════════════════
+//  CONTROLS
+// ═══════════════════════════════════════════════════════
+function startTest() {
+  document.getElementById('start-screen').classList.remove('active');
+  document.getElementById('test-screen').classList.add('active');
+  renderQuestion();
+  startTimer();
+}
+
+function restartTest() {
+  currentQ = 0;
+  answers = new Array(50).fill(null);
+  timeLeft = 25 * 60;
+  answered = false;
+  clearInterval(timerInterval);
+  document.getElementById('results-screen').classList.remove('active');
+  document.getElementById('timer').classList.remove('warning');
+  document.getElementById('timer').textContent = '25:00';
+  document.getElementById('test-screen').classList.add('active');
+  renderQuestion();
+  startTimer();
+}
+</script>
+</body>
+</html>
